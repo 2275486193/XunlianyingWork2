@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">W2</string>
+    <string name="hint_city_code">城市代码，例如 110101</string>
+    <string name="action_query">查询天气</string>
+    <string name="label_city">实时天气</string>
+    <string name="label_forecast">未来四天预报</string>
+    <string name="label_city_with_code">城市代码：%1$s</string>
+</resources>
