@@ -5,4 +5,10 @@
     <string name="label_city">实时天气</string>
     <string name="label_forecast">未来四天预报</string>
     <string name="label_city_with_code">城市代码：%1$s</string>
+    <string-array name="city_options">
+        <item>北京</item>
+        <item>上海</item>
+        <item>广州</item>
+        <item>深圳</item>
+    </string-array>
 </resources>
