@@ -1,7 +1,7 @@
 package com.example.w2
 
 import android.os.Bundle
-import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -9,13 +9,18 @@ import android.widget.TextView
 import android.widget.Spinner
 import android.widget.ArrayAdapter
 import android.widget.AdapterView
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -36,52 +41,76 @@ class MainActivity : AppCompatActivity() {
         cityAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spnCity.adapter = cityAdapter
 
-        val realtimeMap = mapOf(
-            "北京" to Triple("多云", "6℃", "东北风3级 湿度60%"),
-            "上海" to Triple("晴", "12℃", "东南风2级 湿度55%"),
-            "广州" to Triple("小雨", "18℃", "南风3级 湿度70%"),
-            "深圳" to Triple("阴", "20℃", "东风2级 湿度65%")
+        val cityCodeMap = mapOf(
+            "北京" to "110000",
+            "上海" to "310000",
+            "广州" to "440100",
+            "深圳" to "440300"
         )
 
-        fun forecastFor(city: String): List<ForecastItem> {
-            return when (city) {
-                "北京" -> listOf(
-                    ForecastItem("周一", "多云", "-1℃ ~ 6℃", "北风3级"),
-                    ForecastItem("周二", "晴", "-2℃ ~ 7℃", "微风"),
-                    ForecastItem("周三", "小雪", "-4℃ ~ 3℃", "东北风3级"),
-                    ForecastItem("周四", "多云", "-1℃ ~ 5℃", "北风2级")
-                )
-                "上海" -> listOf(
-                    ForecastItem("周一", "晴", "10℃ ~ 15℃", "东南风2级"),
-                    ForecastItem("周二", "多云", "9℃ ~ 14℃", "东风2级"),
-                    ForecastItem("周三", "小雨", "8℃ ~ 12℃", "东北风3级"),
-                    ForecastItem("周四", "阴", "7℃ ~ 11℃", "北风2级")
-                )
-                "广州" -> listOf(
-                    ForecastItem("周一", "小雨", "17℃ ~ 22℃", "南风3级"),
-                    ForecastItem("周二", "阴", "16℃ ~ 21℃", "东风2级"),
-                    ForecastItem("周三", "多云", "18℃ ~ 24℃", "微风"),
-                    ForecastItem("周四", "阵雨", "19℃ ~ 25℃", "南风2级")
-                )
-                "深圳" -> listOf(
-                    ForecastItem("周一", "阴", "19℃ ~ 23℃", "东风2级"),
-                    ForecastItem("周二", "多云", "18℃ ~ 24℃", "东北风2级"),
-                    ForecastItem("周三", "小雨", "17℃ ~ 22℃", "北风2级"),
-                    ForecastItem("周四", "多云", "18℃ ~ 23℃", "微风")
-                )
-                else -> emptyList()
-            }
+        fun queryWeather(city: String) {
+            val adcode = cityCodeMap[city] ?: return
+            Thread {
+                try {
+                    val url = URL("https://restapi.amap.com/v3/weather/weatherInfo?city=$adcode&key=${BuildConfig.AMAP_KEY}&extensions=all")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.connectTimeout = 8000
+                    conn.readTimeout = 8000
+                    conn.requestMethod = "GET"
+                    val reader = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8))
+                    val sb = StringBuilder()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) sb.append(line)
+                    reader.close()
+                    val root = JSONObject(sb.toString())
+                    val lives = root.optJSONArray("lives")
+                    val live = lives?.optJSONObject(0)
+                    val desc = live?.optString("weather") ?: "--"
+                    val temp = live?.optString("temperature")?.let { "$it℃" } ?: "--"
+                    val winddir = live?.optString("winddirection") ?: "--"
+                    val windpower = live?.optString("windpower") ?: "--"
+                    val humidity = live?.optString("humidity") ?: "--"
+                    val wind = "${winddir}风${windpower}级 湿度${humidity}%"
+                    val forecasts = root.optJSONArray("forecasts")
+                    val first = forecasts?.optJSONObject(0)
+                    val casts = first?.optJSONArray("casts")
+                    val list = mutableListOf<ForecastItem>()
+                    if (casts != null) {
+                        val count = kotlin.math.min(4, casts.length())
+                        for (i in 0 until count) {
+                            val c = casts.getJSONObject(i)
+                            val date = c.optString("date")
+                            val dayweather = c.optString("dayweather")
+                            val daytemp = c.optString("daytemp")
+                            val nighttemp = c.optString("nighttemp")
+                            val daywind = c.optString("daywind")
+                            val tempRange = "${nighttemp}℃ ~ ${daytemp}℃"
+                            list.add(ForecastItem(date, dayweather, tempRange, "${daywind}风"))
+                        }
+                    }
+                    runOnUiThread {
+                        tvCityName.text = "$city 实时天气"
+                        tvWeatherDesc.text = desc
+                        tvTemp.text = temp
+                        tvWind.text = wind
+                        rvForecast.adapter = ForecastAdapter(list)
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        tvCityName.text = "$city 实时天气"
+                        tvWeatherDesc.text = "--"
+                        tvTemp.text = "--"
+                        tvWind.text = "--"
+                        rvForecast.adapter = ForecastAdapter(emptyList())
+                    }
+                }
+            }.start()
         }
 
         spnCity.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
                 val city = cities[position]
-                val (desc, temp, wind) = realtimeMap[city] ?: Triple("--", "--", "--")
-                tvCityName.text = "$city 实时天气"
-                tvWeatherDesc.text = desc
-                tvTemp.text = temp
-                tvWind.text = wind
-                rvForecast.adapter = ForecastAdapter(forecastFor(city))
+                queryWeather(city)
             }
 
             override fun onNothingSelected(parent: AdapterView<*>) {
