@@ -8,6 +8,14 @@
 - 未来四天预报：日期、天气、温度范围、风向
 - 仅使用镜像源：Aliyun/Huawei/Tencent Gradle 与 Maven 镜像
 
+## 技术栈
+- 语言与框架：Kotlin（Android）
+- UI：AndroidX `appcompat`、`activity`、`constraintlayout`、`recyclerview`、`material`
+- 网络与解析：`HttpURLConnection`、`org.json`
+- 构建：Gradle Wrapper `7.6`、Android Gradle Plugin `7.4.2`、Kotlin `1.8.20`
+- SDK：`compileSdk=34`、`targetSdk=34`、`minSdk=24`
+- 权限：`android.permission.INTERNET`
+
 ## 环境要求
 - JDK：`11`（项目已固定 Gradle 运行时为 `D:/JDK11`）
 - Android SDK：`sdk.dir` 指向本机 Android SDK 目录（`local.properties`）
@@ -41,6 +49,19 @@
 - 未来预报（all）：`/v3/weather/weatherInfo?city=<adcode>&key=<AMAP_KEY>&extensions=all`
 - 城市编码（adcode）：北京 `110000`、上海 `310000`、广州 `440100`、深圳 `440300`
 
+## 页面展示
+- 北京（实时 + 预报）
+
+  ![北京界面](./北京.png)
+
+- 上海（实时 + 预报）
+
+  ![上海界面](./上海.png)
+
+- 选择栏目（城市下拉）
+
+  ![选择栏目](./选择栏目.png)
+
 ## 目录结构（关键）
 - `app/src/main/java/com/example/w2/MainActivity.kt`
   - 处理城市选择与两次接口调用，解析并渲染 UI
@@ -56,5 +77,4 @@
   - 仓库镜像与 Gradle Wrapper 已指向国内镜像；如仍访问官方，请清理 Gradle/IDE 缓存后重试
 - 依赖版本不兼容
   - 关键版本：`AGP 7.4.2 / Gradle 7.6 / Kotlin 1.8.20 / activity 1.6.1 / material 1.9.0`；升级将可能需要切换到 JDK 17/AGP 8+
-
 
