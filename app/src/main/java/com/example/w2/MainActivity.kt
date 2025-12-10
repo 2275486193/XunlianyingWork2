@@ -5,6 +5,7 @@ import androidx.core.view.WindowCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import android.view.View
 import android.widget.TextView
 import android.widget.Spinner
 import android.widget.ArrayAdapter
@@ -52,26 +53,34 @@ class MainActivity : AppCompatActivity() {
             val adcode = cityCodeMap[city] ?: return
             Thread {
                 try {
-                    val url = URL("https://restapi.amap.com/v3/weather/weatherInfo?city=$adcode&key=${BuildConfig.AMAP_KEY}&extensions=all")
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 8000
-                    conn.readTimeout = 8000
-                    conn.requestMethod = "GET"
-                    val reader = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8))
-                    val sb = StringBuilder()
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) sb.append(line)
-                    reader.close()
-                    val root = JSONObject(sb.toString())
-                    val lives = root.optJSONArray("lives")
+                    fun getJson(urlStr: String): JSONObject? {
+                        return try {
+                            val url = URL(urlStr)
+                            val conn = url.openConnection() as HttpURLConnection
+                            conn.connectTimeout = 8000
+                            conn.readTimeout = 8000
+                            conn.requestMethod = "GET"
+                            BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { r ->
+                                val sb = StringBuilder()
+                                var line: String?
+                                while (r.readLine().also { line = it } != null) sb.append(line)
+                                JSONObject(sb.toString())
+                            }
+                        } catch (_: Exception) { null }
+                    }
+
+                    val liveRoot = getJson("https://restapi.amap.com/v3/weather/weatherInfo?city=$adcode&key=${BuildConfig.AMAP_KEY}&extensions=base")
+                    val lives = liveRoot?.optJSONArray("lives")
                     val live = lives?.optJSONObject(0)
-                    val desc = live?.optString("weather") ?: "--"
-                    val temp = live?.optString("temperature")?.let { "$it℃" } ?: "--"
-                    val winddir = live?.optString("winddirection") ?: "--"
-                    val windpower = live?.optString("windpower") ?: "--"
-                    val humidity = live?.optString("humidity") ?: "--"
-                    val wind = "${winddir}风${windpower}级 湿度${humidity}%"
-                    val forecasts = root.optJSONArray("forecasts")
+                    val desc = live?.optString("weather").orEmpty()
+                    val temp = live?.optString("temperature")?.let { "$it℃" }.orEmpty()
+                    val winddir = live?.optString("winddirection").orEmpty()
+                    val windpower = live?.optString("windpower").orEmpty()
+                    val humidity = live?.optString("humidity").orEmpty()
+                    val wind = if (winddir.isNotEmpty() && windpower.isNotEmpty() && humidity.isNotEmpty()) "${winddir}风${windpower}级 湿度${humidity}%" else ""
+
+                    val forecastRoot = getJson("https://restapi.amap.com/v3/weather/weatherInfo?city=$adcode&key=${BuildConfig.AMAP_KEY}&extensions=all")
+                    val forecasts = forecastRoot?.optJSONArray("forecasts")
                     val first = forecasts?.optJSONObject(0)
                     val casts = first?.optJSONArray("casts")
                     val list = mutableListOf<ForecastItem>()
@@ -84,23 +93,36 @@ class MainActivity : AppCompatActivity() {
                             val daytemp = c.optString("daytemp")
                             val nighttemp = c.optString("nighttemp")
                             val daywind = c.optString("daywind")
-                            val tempRange = "${nighttemp}℃ ~ ${daytemp}℃"
-                            list.add(ForecastItem(date, dayweather, tempRange, "${daywind}风"))
+                            val tempRange = if (daytemp.isNotEmpty() && nighttemp.isNotEmpty()) "${nighttemp}℃ ~ ${daytemp}℃" else ""
+                            val windText = if (daywind.isNotEmpty()) "${daywind}风" else ""
+                            list.add(ForecastItem(date, dayweather, tempRange, windText))
                         }
                     }
                     runOnUiThread {
                         tvCityName.text = "$city 实时天气"
-                        tvWeatherDesc.text = desc
-                        tvTemp.text = temp
-                        tvWind.text = wind
+                        if (desc.isNotEmpty()) {
+                            tvWeatherDesc.text = desc
+                            tvWeatherDesc.visibility = View.VISIBLE
+                        } else tvWeatherDesc.visibility = View.GONE
+
+                        if (temp.isNotEmpty()) {
+                            tvTemp.text = temp
+                            tvTemp.visibility = View.VISIBLE
+                        } else tvTemp.visibility = View.GONE
+
+                        if (wind.isNotEmpty()) {
+                            tvWind.text = wind
+                            tvWind.visibility = View.VISIBLE
+                        } else tvWind.visibility = View.GONE
+
                         rvForecast.adapter = ForecastAdapter(list)
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
                         tvCityName.text = "$city 实时天气"
-                        tvWeatherDesc.text = "--"
-                        tvTemp.text = "--"
-                        tvWind.text = "--"
+                        tvWeatherDesc.visibility = View.GONE
+                        tvTemp.visibility = View.GONE
+                        tvWind.visibility = View.GONE
                         rvForecast.adapter = ForecastAdapter(emptyList())
                     }
                 }
